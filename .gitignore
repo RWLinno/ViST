@@ -1,3 +1,9 @@
+# ViST
+.ViST/ViST/tutorials/
+.ViST/ViST/exp/
+.ViST/ViST/images_output/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
