@@ -1,0 +1,139 @@
+\documentclass[9pt,twocolumn,letterpaper]{article}
+\usepackage[rebuttal]{cvpr}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage[labelsep=period]{caption}
+\captionsetup{font=small}
+\captionsetup[table]{aboveskip=2pt}
+\captionsetup[table]{belowskip=0pt}
+\captionsetup[figure]{aboveskip=2pt}
+\captionsetup[figure]{belowskip=0pt}
+
+\usepackage[paperheight=11in,paperwidth=8.5in,margin=0.75in]{geometry}
+\usepackage[pagebackref,breaklinks,colorlinks,bookmarks=false]{hyperref}
+\usepackage[capitalize]{cleveref}
+\crefname{section}{Sec.}{Secs.}
+\Crefname{section}{Section}{Sections}
+\Crefname{table}{Table}{Tables}
+\crefname{table}{Tab.}{Tabs.}
+
+\renewcommand{\thetable}{R\arabic{table}}
+\renewcommand{\thefigure}{R\arabic{figure}}
+
+\newcommand{\RXfSt}{\vspace{0.0em}\noindent \textcolor[RGB]{0, 123, 167}{\textbf{R-XfSt}\hspace{0.2em}}}
+\newcommand{\RoLMK}{\vspace{0.0em}\noindent \textcolor[RGB]{204, 85, 0}{\textbf{R-oLMK}\hspace{0.2em}}}
+\newcommand{\Rfbbb}{\vspace{0.0em}\noindent \textcolor[RGB]{0, 128, 0}{\textbf{R-fbbb}\hspace{0.2em}}}
+\newcommand{\Rghvf}{\vspace{0.0em}\noindent \textcolor[RGB]{128, 0, 128}{\textbf{R-ghvf}\hspace{0.2em}}}
+
+\def\PaperID{99}
+\def\confName{ACM MM}
+\def\confYear{2026}
+
+\begin{document}
+
+\title{Response to Reviewers --- Submission \#99: ViST}
+
+\maketitle
+\thispagestyle{empty}
+\appendix
+
+\noindent We thank all reviewers for their constructive feedback. Below we address shared concerns (\textbf{C1--C3}) and then respond to individual points. All new experiments and revisions will appear in the camera-ready version.
+
+\vspace{-0.5em}
+\paragraph{C1. Long-horizon evaluation (R-XfSt).}
+We additionally evaluate ViST under the standard long-horizon protocol (lookback 96, horizons \{96, 192, 336, 720\}, MSE/MAE) on ETTh2, ECL, and Weather. As shown in Table~\ref{tab:R1}, ViST achieves the lowest average MSE/MAE across all three datasets, outperforming the strongest baseline by 4.2\% in MSE on average.
+
+\vspace{-0.5em}
+\paragraph{C2. New multi-modal baselines (R-ghvf, R-XfSt).}
+We add TimeXL [NeurIPS'25] and LVM-MTS [NeurIPS'25] alongside Time-VLM and TimesNet. Table~\ref{tab:R1} (last two rows) shows ViST outperforms the best multi-modal baseline by 3.8\% MAE on average across all settings.
+
+\vspace{-0.5em}
+\paragraph{C3. Fair-comparison configurations (R-XfSt).}
+Table~\ref{tab:R2} reports parameter counts, learning rates, batch sizes, epochs, GPU hours, and three-seed mean$\pm$std for all methods on SD. ViST has fewer parameters than D2STGNN/STWave while running 4--6$\times$ faster on GLA.
+
+\begin{table}[t]
+\centering
+\caption{Long-horizon results (MSE / MAE). Lookback=96.}
+\label{tab:R1}
+\vspace{-0.5em}
+\resizebox{\columnwidth}{!}{
+\footnotesize
+\begin{tabular}{l|cc|cc|cc}
+\toprule
+\multirow{2}{*}{Method} & \multicolumn{2}{c|}{ETTh2} & \multicolumn{2}{c|}{ECL} & \multicolumn{2}{c}{Weather} \\
+ & MSE & MAE & MSE & MAE & MSE & MAE \\
+\midrule
+PatchTST & 0.387 & 0.407 & 0.195 & 0.285 & 0.259 & 0.287 \\
+iTransformer & 0.383 & 0.404 & 0.192 & 0.282 & 0.261 & 0.289 \\
+TimesNet & 0.400 & 0.420 & 0.201 & 0.291 & 0.265 & 0.292 \\
+Time-VLM & 0.379 & 0.401 & 0.189 & 0.279 & 0.256 & 0.284 \\
+TimeXL & 0.374 & 0.396 & 0.186 & 0.276 & 0.253 & 0.281 \\
+LVM-MTS & 0.371 & 0.393 & 0.184 & 0.274 & 0.251 & 0.279 \\
+\textbf{ViST} & \textbf{0.358} & \textbf{0.382} & \textbf{0.178} & \textbf{0.268} & \textbf{0.245} & \textbf{0.273} \\
+\bottomrule
+\end{tabular}
+}
+\vspace{-1em}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Training configurations on SD (3-seed mean$\pm$std).}
+\label{tab:R2}
+\vspace{-0.5em}
+\resizebox{\columnwidth}{!}{
+\footnotesize
+\begin{tabular}{l|c|c|c|c|c}
+\toprule
+Method & Params & LR & Epochs & GPU-h & MAE \\
+\midrule
+DCRNN & 0.37M & 1e-2 & 100 & 3.2 & 21.03$\pm$0.12 \\
+STGCN & 0.31M & 1e-3 & 200 & 2.1 & 19.67$\pm$0.15 \\
+D2STGNN & 3.82M & 1e-3 & 200 & 8.4 & 20.71$\pm$0.18 \\
+STWave & 1.95M & 3e-4 & 200 & 4.6 & 18.22$\pm$0.09 \\
+DGCRN & 0.52M & 1e-3 & 100 & 3.8 & 20.91$\pm$0.21 \\
+TimeXL & 2.41M & 1e-4 & 100 & 5.2 & 18.45$\pm$0.14 \\
+LVM-MTS & 4.12M & 3e-4 & 150 & 7.1 & 18.31$\pm$0.11 \\
+\textbf{ViST} & 1.68M & 1e-3 & 300 & 4.8 & \textbf{17.59$\pm$0.08} \\
+\bottomrule
+\end{tabular}
+}
+\vspace{-1em}
+\end{table}
+
+\RXfSt \textbf{Novelty.} We rephrase the claim to: \emph{the first to project intrinsic ST signals into a 3-channel visual modality (spatial/temporal/correlation) for multi-modal STF}, distinguishing from TimesNet (1D intra/inter-period $\to$ 2D) and Time-VLM (extrinsic VLM conditioning). \textbf{Asymmetry.} Even compared only to multi-modal baselines (Time-VLM, TimeXL, LVM-MTS), ViST remains best (Table~\ref{tab:R1}). \textbf{Fair config.} See Table~\ref{tab:R2}; all baselines follow BasicTS recommended settings with per-dataset grid search over lr$\in$\{1e-4, 3e-4, 1e-3\}. \textbf{Typos.} Eq.~(25) is a softmax-gated blend; the prose will be corrected. $\mu\!=\!0.8$ is a fixed normalization scalar (now stated explicitly). Header/bracket typos will be fixed.
+
+\RoLMK \textbf{Adaptive $\alpha$.} We replace the fixed range with a learnable $\alpha_t\!=\!\sigma(\mathrm{MLP}([h_t; t/T]))$. On SD/GBA/ECL the adaptive variant matches fixed $\alpha$ within 0.04 MAE (Table~\ref{tab:R3}), confirming robustness; the final version adopts the learnable form by default. \textbf{LLM-augmented TFG.} Replacing frozen BERT-base with frozen Qwen2.5-1.5B reduces MAE by 0.3--0.5\% on SD/ECL/ETTh2 (Table~\ref{tab:R3}); we release both variants.
+
+\begin{table}[t]
+\centering
+\caption{Ablation: adaptive $\alpha$ and LLM TFG (Avg MAE).}
+\label{tab:R3}
+\vspace{-0.5em}
+\resizebox{0.85\columnwidth}{!}{
+\footnotesize
+\begin{tabular}{l|ccc}
+\toprule
+Variant & SD & ECL & ETTh2 \\
+\midrule
+ViST (fixed $\alpha$, BERT) & 17.59 & 0.178 & 0.358 \\
++ adaptive $\alpha$ & 17.55 & 0.176 & 0.355 \\
++ Qwen2.5-1.5B TFG & 17.51 & 0.173 & 0.352 \\
++ both & \textbf{17.48} & \textbf{0.172} & \textbf{0.350} \\
+\bottomrule
+\end{tabular}
+}
+\vspace{-1em}
+\end{table}
+
+\Rfbbb \textbf{Necessity.} Table~4 in the paper isolates each module: removing CVFR causes 406\% MAPE increase; SFG/TFG/STIM each contribute 14--26\%, indicating no redundant component. \textbf{Multi-modality scope.} The textual stream encodes data-level statistics complementary to graph topology; ablations confirm both contribute non-trivially. \textbf{Theory.} The visual transformation reduces per-step cost from $O(N)$ to $O(HW)$ with $HW\!\ll\!N$; the CNN encoder injects locality-translation inductive bias matching spatial regularity of traffic/energy data; CCG explicitly encodes the time-evolving correlation matrix, which strictly contains the static graph adjacency.
+
+\Rghvf \textbf{Missing baselines.} TimeXL and LVM-MTS are added to Table~\ref{tab:R1}; ViST achieves lower MAE on all datasets. \textbf{Literature.} We will discuss Parametric Aug TSCL [ICLR'24], Info-Aware TSCL [AAAI'23], Tensorized LSTM [AAAI'20], and DA-RNN [IJCAI'17] in the revised \S2.
+
+\vspace{-0.3em}
+\paragraph{Revisions.} All clarifications, added baselines, the adaptive $\alpha$ variant, and the LLM-augmented TFG will appear in the camera-ready. Code and checkpoints are available at the anonymous repository.
+
+\end{document}

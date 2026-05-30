@@ -77,6 +77,17 @@ class MultiPerspectiveVisualEncoder(nn.Module):
         # Current epoch - will be updated during training
         self.current_epoch = 0
         
+        # Adaptive alpha parameters (for SCG)
+        self.adaptive_alpha = configs.get('adaptive_alpha', False)
+        if self.adaptive_alpha:
+            hidden_dim = configs.get('hidden_dim', 256)
+            self.alpha_mlp = nn.Sequential(
+                nn.Linear(hidden_dim + 1, 64),
+                nn.ReLU(),
+                nn.Linear(64, 1),
+                nn.Sigmoid()
+            )
+        
         # Feature extraction parameters
         self.dim_reduction = nn.Conv2d(configs.get('embed_dim', 64), 32, kernel_size=1)
         
@@ -314,7 +325,8 @@ class MultiPerspectiveVisualEncoder(nn.Module):
     
     def _generate_spatial_channel_vectorized(self, history_data, adj_mx):
         """
-        Fully vectorized spatial channel generation with enhanced gradients
+        Fully vectorized spatial channel generation with enhanced gradients.
+        Supports adaptive alpha when self.adaptive_alpha is True.
         
         Args:
             history_data: Tensor of shape [B, T, N, D]
@@ -405,9 +417,23 @@ class MultiPerspectiveVisualEncoder(nn.Module):
             # Expand for broadcasting
             conn_grid = conn_grid.unsqueeze(1).expand(-1, T, -1, -1)
             
-            # Create dynamic blend factors
-            time_factors = 0.8 - 0.2 * (torch.arange(T, device=device) / max(1, T-1))
-            blend_factors = time_factors.view(1, T, 1, 1)
+            # Create dynamic blend factors (adaptive or fixed alpha)
+            if self.adaptive_alpha and hasattr(self, 'alpha_mlp'):
+                # Learnable alpha: alpha_t = sigmoid(MLP([h_t_mean; t/T]))
+                h_mean = history_data.mean(dim=(2, 3))  # [B, T]
+                t_ratio = torch.arange(T, device=device).float() / max(1, T-1)
+                t_ratio = t_ratio.unsqueeze(0).expand(B, -1)  # [B, T]
+                # Use mean hidden state + time ratio
+                h_for_alpha = history_data.mean(dim=3)[:, :, :1].squeeze(-1)  # [B, T]
+                alpha_input = torch.stack([h_for_alpha, t_ratio], dim=-1)  # [B, T, 2]
+                # Pad to match alpha_mlp input dim
+                alpha_input_padded = torch.zeros(B, T, self.alpha_mlp[0].in_features, device=device)
+                alpha_input_padded[:, :, :2] = alpha_input
+                alpha_t = self.alpha_mlp(alpha_input_padded).squeeze(-1)  # [B, T]
+                blend_factors = (0.8 - 0.2 * alpha_t).unsqueeze(-1).unsqueeze(-1)  # [B, T, 1, 1]
+            else:
+                time_factors = 0.8 - 0.2 * (torch.arange(T, device=device) / max(1, T-1))
+                blend_factors = time_factors.view(1, T, 1, 1)
             
             # Apply blending
             grids = blend_factors * grids + (1 - blend_factors) * conn_grid

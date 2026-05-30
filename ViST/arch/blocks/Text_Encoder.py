@@ -112,7 +112,7 @@ class TextEncoder(nn.Module):
         return prompts
     
     def _load_language_model(self, device):
-        """Lazy-load language model only when needed"""
+        """Lazy-load language model only when needed. Supports BERT and Qwen2.5."""
         if self._model_loaded:
             return True
         try:
@@ -121,7 +121,8 @@ class TextEncoder(nn.Module):
                 self.model_name,
                 local_files_only=True,
                 use_fast=True,
-                model_max_length=128
+                model_max_length=128,
+                trust_remote_code=True
             )
 
             if hasattr(self.tokenizer, 'eos_token') and self.tokenizer.eos_token:
@@ -131,20 +132,45 @@ class TextEncoder(nn.Module):
                 self.tokenizer.add_special_tokens({'pad_token': pad_token})
                 self.tokenizer.pad_token = pad_token
 
-            # Try to load model with optimizations
-            try:
-                self.llm_model = BertModel.from_pretrained(
-                    self.model_name,
-                    torchscript=True,
-                    return_dict=False
-                )
-            except:
-                print(f"Local model not found. Downloading {self.model_name}...")
-                self.llm_model = BertModel.from_pretrained(
-                    self.model_name,
-                    trust_remote_code=True,
-                    local_files_only=False
-                )
+            # Determine model type based on name
+            is_causal_lm = any(k in self.model_name.lower() for k in ['qwen', 'llama', 'gpt', 'mistral'])
+            
+            if is_causal_lm:
+                from transformers import AutoModelForCausalLM
+                try:
+                    self.llm_model = AutoModelForCausalLM.from_pretrained(
+                        self.model_name,
+                        trust_remote_code=True,
+                        local_files_only=True,
+                        torch_dtype=torch.float16
+                    )
+                except:
+                    print(f"Local model not found. Downloading {self.model_name}...")
+                    self.llm_model = AutoModelForCausalLM.from_pretrained(
+                        self.model_name,
+                        trust_remote_code=True,
+                        local_files_only=False,
+                        torch_dtype=torch.float16
+                    )
+                # Update llm_dim based on actual model hidden size
+                self.llm_dim = self.llm_model.config.hidden_size
+            else:
+                # BERT-style encoder model
+                try:
+                    self.llm_model = BertModel.from_pretrained(
+                        self.model_name,
+                        torchscript=True,
+                        return_dict=False
+                    )
+                except:
+                    print(f"Local model not found. Downloading {self.model_name}...")
+                    self.llm_model = BertModel.from_pretrained(
+                        self.model_name,
+                        trust_remote_code=True,
+                        local_files_only=False
+                    )
+            
+            self._is_causal_lm = is_causal_lm
                 
             # Move model to device
             self.llm_model = self.llm_model.to(device)
@@ -158,7 +184,6 @@ class TextEncoder(nn.Module):
                 
         except Exception as e:
             print(f"Warning: Could not load transformer models: {e}")
-            # Keep track that we tried but failed
             self._model_loaded = False
             return False
     
@@ -200,16 +225,27 @@ class TextEncoder(nn.Module):
                 return_tensors='pt'
             ).to(device)
             
-            outputs = self.llm_model(
-                input_ids=tokens["input_ids"],
-                attention_mask=tokens.get("attention_mask"),
-                return_dict=True
-            )
-            
-            # More stable mean pooling with normalization
-            attention_mask = tokens.get("attention_mask").unsqueeze(-1)
-            token_sum = attention_mask.sum(1) + 1e-10
-            embeddings = (outputs.last_hidden_state * attention_mask).sum(1) / token_sum
+            if hasattr(self, '_is_causal_lm') and self._is_causal_lm:
+                # Causal LM (Qwen2.5, LLaMA, etc.) — use last hidden state
+                outputs = self.llm_model(
+                    input_ids=tokens["input_ids"],
+                    attention_mask=tokens.get("attention_mask"),
+                    output_hidden_states=True
+                )
+                last_hidden = outputs.hidden_states[-1]
+                attention_mask = tokens.get("attention_mask").unsqueeze(-1)
+                token_sum = attention_mask.sum(1) + 1e-10
+                embeddings = (last_hidden * attention_mask).sum(1) / token_sum
+            else:
+                # Encoder model (BERT) — use pooled output
+                outputs = self.llm_model(
+                    input_ids=tokens["input_ids"],
+                    attention_mask=tokens.get("attention_mask"),
+                    return_dict=True
+                )
+                attention_mask = tokens.get("attention_mask").unsqueeze(-1)
+                token_sum = attention_mask.sum(1) + 1e-10
+                embeddings = (outputs.last_hidden_state * attention_mask).sum(1) / token_sum
             
             # IMPORTANT: Normalize embeddings to control their scale
             # Using L2 normalization to ensure consistent magnitude
