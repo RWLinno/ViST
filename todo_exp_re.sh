@@ -1,67 +1,74 @@
 #!/bin/bash
-# todo_exp_re.sh — ACM MM 2026 Rebuttal 补实验总调度脚本
-# 所有脚本须支持 --seed {2024,2025,2026} 三次取均值
-# 完成后自动推 HF: ViST_ckpts/<exp>/
+# todo_exp_re.sh — ACM MM 2026 Rebuttal 一键并行实验脚本
+# GPU: 仅使用 GPU 0,1 (2x H800 140GB)
+# 策略: 尽可能塞满每张卡，所有实验并行启动
 #
-# 资源：8×A6000，每条命令在 run_*.sh 内显式指定 CUDA_VISIBLE_DEVICES
-# 优先级：P0→P1→P2，同 P 级显存大者先行
-# 单任务 wall-clock > 24h 自动 timeout 并 dump 中间 ckpt 推 HF
+# 显存估算 (训练模式, full model with BERT):
+#   ETTh2/Weather (N<=21, bs=32): ~8GB
+#   ECL (N=321, bs=16): ~7GB
+#   SD (N=716, bs=8): ~5GB
+#   GBA (N=2352, bs=4): ~25GB
+# 每张卡 140GB，可同时跑 5-10 个实验
 
-set -e
-cd "$(dirname "$0")"
+cd /mnt/users/rwl/ViST
+
+# 激活 conda 环境
+eval "$(conda shell.bash hook)"
+conda activate vist
 
 mkdir -p logs ckpts results
 
 echo "=============================================="
-echo " ViST Rebuttal Experiments — $(date)"
+echo " ViST Rebuttal — Parallel Launch on GPU 0,1"
+echo " $(date)"
 echo "=============================================="
 
-# ============ P0: 长序列 TS Benchmark (R-XfSt-d) ============
-# Lookback=96, horizons={96,192,336,720}, metrics MSE/MAE
-echo "[P0] Starting long-horizon experiments..."
-nohup bash scripts/rebuttal/run_longhorizon_etth2.sh   > logs/run_longhorizon_etth2.log   2>&1 &
-nohup bash scripts/rebuttal/run_longhorizon_ecl.sh     > logs/run_longhorizon_ecl.log     2>&1 &
-nohup bash scripts/rebuttal/run_longhorizon_weather.sh > logs/run_longhorizon_weather.log  2>&1 &
+# ============================================================
+# GPU 0: ETTh2 长序列 x4 + Weather 长序列 x4 + adaptive_alpha SD
+# 预计总占用: 8*4 + 8*4 + 5 = ~69GB
+# ============================================================
 
-# ============ P0: 新增多模态 Baselines (R-ghvf-a, R-XfSt-b) ============
-echo "[P0] Starting baseline experiments..."
-nohup bash scripts/rebuttal/run_baseline_timexl.sh   > logs/run_baseline_timexl.log   2>&1 &
-nohup bash scripts/rebuttal/run_baseline_lvmmts.sh   > logs/run_baseline_lvmmts.log   2>&1 &
-nohup bash scripts/rebuttal/run_baseline_timevlm.sh  > logs/run_baseline_timevlm.log  2>&1 &
-nohup bash scripts/rebuttal/run_baseline_timesnet.sh > logs/run_baseline_timesnet.log  2>&1 &
+CUDA_VISIBLE_DEVICES=0 nohup python experiments/train.py -c ViST/longhorizon/ViST_ETTh2_H96.py -g 0 > logs/lh_ETTh2_H96.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 nohup python experiments/train.py -c ViST/longhorizon/ViST_ETTh2_H192.py -g 0 > logs/lh_ETTh2_H192.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 nohup python experiments/train.py -c ViST/longhorizon/ViST_ETTh2_H336.py -g 0 > logs/lh_ETTh2_H336.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 nohup python experiments/train.py -c ViST/longhorizon/ViST_ETTh2_H720.py -g 0 > logs/lh_ETTh2_H720.log 2>&1 &
 
-# ============ P0: Adaptive α 消融 (R-oLMK-a) ============
-echo "[P0] Starting adaptive alpha experiments..."
-nohup bash scripts/rebuttal/run_adaptive_alpha_sd.sh  > logs/run_adaptive_alpha_sd.log  2>&1 &
-nohup bash scripts/rebuttal/run_adaptive_alpha_gba.sh > logs/run_adaptive_alpha_gba.log 2>&1 &
-nohup bash scripts/rebuttal/run_adaptive_alpha_ecl.sh > logs/run_adaptive_alpha_ecl.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 nohup python experiments/train.py -c ViST/longhorizon/ViST_Weather_H96.py -g 0 > logs/lh_Weather_H96.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 nohup python experiments/train.py -c ViST/longhorizon/ViST_Weather_H192.py -g 0 > logs/lh_Weather_H192.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 nohup python experiments/train.py -c ViST/longhorizon/ViST_Weather_H336.py -g 0 > logs/lh_Weather_H336.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 nohup python experiments/train.py -c ViST/longhorizon/ViST_Weather_H720.py -g 0 > logs/lh_Weather_H720.log 2>&1 &
 
-# ============ P0: LLM-augmented TFG (R-oLMK-b) ============
-echo "[P0] Starting LLM TFG experiments..."
-nohup bash scripts/rebuttal/run_llm_tfg_sd.sh    > logs/run_llm_tfg_sd.log    2>&1 &
-nohup bash scripts/rebuttal/run_llm_tfg_ecl.sh   > logs/run_llm_tfg_ecl.log   2>&1 &
-nohup bash scripts/rebuttal/run_llm_tfg_etth2.sh > logs/run_llm_tfg_etth2.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0 nohup python experiments/train.py -c ViST/ablation/ViST_SD_adaptive_alpha.py -g 0 > logs/ada_alpha_SD.log 2>&1 &
 
-# ============ P1: 公平比较配置 dump (R-XfSt-c) ============
-echo "[P1] Dumping fair comparison table..."
-nohup bash scripts/rebuttal/dump_fair_comparison_table.sh > logs/run_fair_comp.log 2>&1 &
+# ============================================================
+# GPU 1: ECL 长序列 x4 + adaptive_alpha GBA + adaptive_alpha ECL
+# 预计总占用: 7*4 + 25 + 7 = ~60GB
+# ============================================================
 
-# ============ P1: Multi-seed 鲁棒性 (R-XfSt-c) ============
-echo "[P1] Starting multi-seed experiments..."
-nohup bash scripts/rebuttal/run_multiseed_sd.sh  > logs/run_multiseed_sd.log  2>&1 &
-nohup bash scripts/rebuttal/run_multiseed_gba.sh > logs/run_multiseed_gba.log 2>&1 &
+CUDA_VISIBLE_DEVICES=1 nohup python experiments/train.py -c ViST/longhorizon/ViST_Electricity_H96.py -g 0 > logs/lh_ECL_H96.log 2>&1 &
+CUDA_VISIBLE_DEVICES=1 nohup python experiments/train.py -c ViST/longhorizon/ViST_Electricity_H192.py -g 0 > logs/lh_ECL_H192.log 2>&1 &
+CUDA_VISIBLE_DEVICES=1 nohup python experiments/train.py -c ViST/longhorizon/ViST_Electricity_H336.py -g 0 > logs/lh_ECL_H336.log 2>&1 &
+CUDA_VISIBLE_DEVICES=1 nohup python experiments/train.py -c ViST/longhorizon/ViST_Electricity_H720.py -g 0 > logs/lh_ECL_H720.log 2>&1 &
 
-# ============ P2: 架构消融 (R-fbbb-c, 理论支撑) ============
-echo "[P2] Starting architecture ablation..."
-nohup bash scripts/rebuttal/run_arch_ablation.sh > logs/run_arch_ablation.log 2>&1 &
+CUDA_VISIBLE_DEVICES=1 nohup python experiments/train.py -c ViST/ablation/ViST_GBA_adaptive_alpha.py -g 0 > logs/ada_alpha_GBA.log 2>&1 &
+CUDA_VISIBLE_DEVICES=1 nohup python experiments/train.py -c ViST/ablation/ViST_Electricity_adaptive_alpha.py -g 0 > logs/ada_alpha_ECL.log 2>&1 &
 
 echo ""
 echo "=============================================="
-echo " All experiments launched. Monitor with:"
-echo "   tail -f logs/run_*.log"
-echo "   jobs -l"
+echo " 15 experiments launched"
+echo " GPU 0: 9 jobs (ETTh2x4 + Weatherx4 + ada_alpha_SD)"
+echo " GPU 1: 6 jobs (ECLx4 + ada_alpha_GBA + ada_alpha_ECL)"
 echo "=============================================="
 echo ""
-echo "After completion, run:"
-echo "   python scripts/rebuttal/collect_results.py"
-echo "   to generate results/RESULTS.csv and results/REBUTTAL_TABLES.md"
+echo " NOTE: LLM TFG experiments (Qwen2.5-1.5B) skipped — model not available locally."
+echo "       Download with: huggingface-cli download Qwen/Qwen2.5-1.5B --local-dir /mnt/users/rwl/models/Qwen2.5-1.5B"
+echo "       Then run: bash scripts/rebuttal/run_llm_tfg_all.sh"
+echo ""
+echo " Monitor:"
+echo "   watch -n 30 nvidia-smi"
+echo "   tail -f logs/lh_ETTh2_H96.log"
+echo "   grep -c 'Epoch' logs/*.log  # check epoch progress"
+echo ""
+echo " Check completion:"
+echo "   grep -l 'best\|Best' logs/*.log | wc -l"
+echo ""

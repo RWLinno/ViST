@@ -37,7 +37,7 @@ MODEL_PARAM = {
     "output_type": "full",
     "dropout": 0.1,
     "n_heads": 8,
-    "llm_model": "bert-base-uncased",
+    "llm_model": "/mnt/users/rwl/models/bert-base-uncased",
     "llm_dim": 768,
     "vocab_size": 1000,
     "d_ff": 32,

@@ -28,6 +28,11 @@ class TextEncoder(nn.Module):
         
         # Model setup - lightweight, on-demand loading
         self.model_name = config['llm_model']
+        # Support local model path
+        if os.path.isdir(self.model_name):
+            self._local_model_path = self.model_name
+        else:
+            self._local_model_path = None
         self.tokenizer = None
         self.llm_model = None
         self._model_loaded = False
@@ -116,10 +121,12 @@ class TextEncoder(nn.Module):
         if self._model_loaded:
             return True
         try:
+            model_path = self._local_model_path if self._local_model_path else self.model_name
+            
             # Try to load tokenizer with optimizations
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name,
-                local_files_only=True,
+                model_path,
+                local_files_only=(self._local_model_path is not None),
                 use_fast=True,
                 model_max_length=128,
                 trust_remote_code=True
@@ -139,9 +146,9 @@ class TextEncoder(nn.Module):
                 from transformers import AutoModelForCausalLM
                 try:
                     self.llm_model = AutoModelForCausalLM.from_pretrained(
-                        self.model_name,
+                        model_path,
                         trust_remote_code=True,
-                        local_files_only=True,
+                        local_files_only=(self._local_model_path is not None),
                         torch_dtype=torch.float16
                     )
                 except:
@@ -158,9 +165,8 @@ class TextEncoder(nn.Module):
                 # BERT-style encoder model
                 try:
                     self.llm_model = BertModel.from_pretrained(
-                        self.model_name,
-                        torchscript=True,
-                        return_dict=False
+                        model_path,
+                        local_files_only=(self._local_model_path is not None),
                     )
                 except:
                     print(f"Local model not found. Downloading {self.model_name}...")

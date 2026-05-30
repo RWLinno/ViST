@@ -1,0 +1,19 @@
+{
+  "regular_settings": {
+    "INPUT_LEN": 12,
+    "OUTPUT_LEN": 12,
+    "TRAIN_VAL_TEST_RATIO": [
+      0.6,
+      0.2,
+      0.2
+    ],
+    "NORM_EACH_CHANNEL": false,
+    "RESCALE": true,
+    "NULL_VAL": 0.0
+  },
+  "shape": [
+    35040,
+    2352,
+    3
+  ]
+}

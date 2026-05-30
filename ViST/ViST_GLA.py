@@ -56,7 +56,7 @@ MODEL_PARAM = {
     "save_interval": 1,
 
     # LLM textual programming
-    "llm_model": "bert-base-uncased", ## LLAMA, GPT2, BERT
+    "llm_model": "/mnt/users/rwl/models/bert-base-uncased", ## LLAMA, GPT2, BERT
     "llm_dim": 768, # LLama7b:4096; GPT2-small:768; BERT-base:768
     "vocab_size": 1000,
     "d_ff": 32,

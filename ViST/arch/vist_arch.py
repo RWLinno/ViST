@@ -392,7 +392,7 @@ class ViST(nn.Module):
 
             'vocab_size': model_args.get('vocab_size', 10000),
             'llm_dim': model_args.get('llm_dim', 768),
-            'llm_model': model_args.get('llm_model', 'bert-base-uncased'),
+            'llm_model': model_args.get('llm_model', '/mnt/users/rwl/models/bert-base-uncased'),
             'd_ff': model_args.get('d_ff', 32),
             'n_heads': model_args.get('n_heads', 8),
             'top_k': model_args.get('top_k', 3),
